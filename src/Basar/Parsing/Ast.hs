@@ -6,6 +6,16 @@ data Ident = MkIdent String Range deriving (Show)
 
 newtype Type = MkType String deriving (Show)
 
+data Decl
+  = DDefun Ident [(Ident, Type)] [Stmt] Range
+  deriving (Show)
+
+data Stmt
+  = SExpr Expr Range
+  | SDefun Ident [(Ident, Type)] [Stmt] Range
+  | SDecl Decl Range
+  deriving (Show)
+
 data Expr
   = ECall Expr Expr Range
   | EStr String Range
@@ -13,7 +23,6 @@ data Expr
   | EFloat Float Range
   | ERef Ident Range
   | EGroup Expr Range
-  | ELambda (Ident, Type) [Expr] Range
-  | EDefun Ident [(Ident, Type)] [Expr]
-  | ELet [(Ident, Expr)] [Expr] Range
+  | ELambda (Ident, Type) [Stmt] Range
+  | ELet [(Ident, Expr)] [Stmt] Range
   deriving (Show)

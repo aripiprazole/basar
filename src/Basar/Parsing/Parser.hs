@@ -2,7 +2,7 @@
 
 module Basar.Parsing.Parser (parseBasar) where
 
-import Basar.Parsing.Ast (Expr (ECall, EDefun, EFloat, EGroup, EInt, ELambda, ELet, ERef, EStr), Ident (MkIdent), Range (MkRange), Type (MkType))
+import Basar.Parsing.Ast (Decl (DDefun), Expr (ECall, EFloat, EGroup, EInt, ELambda, ELet, ERef, EStr), Ident (MkIdent), Range (MkRange), Stmt (SDecl, SDefun, SExpr), Type (MkType))
 import Data.Void (Void)
 import Text.Megaparsec (MonadParsec (try), ParseErrorBundle, Parsec, choice, getSourcePos, many, manyTill, runParser, takeWhileP, (<?>), (<|>))
 import Text.Megaparsec.Char (alphaNumChar, char, letterChar, space1, string)
@@ -11,11 +11,14 @@ import Text.Megaparsec.Error (ParseErrorBundle)
 
 type Parser = Parsec Void String
 
-parseBasar :: String -> Either (ParseErrorBundle String Void) [Expr]
-parseBasar = runParser codeblock ""
+parseBasar :: String -> Either (ParseErrorBundle String Void) [Decl]
+parseBasar = runParser program ""
 
-codeblock :: Parser [Expr]
-codeblock = many $ lexeme decl
+program :: Parser [Decl]
+program = many decl
+
+codeblock :: Parser [Stmt]
+codeblock = many stmt
 
 type' :: Parser Type
 type' = lexeme $ do
@@ -57,8 +60,35 @@ ident = lexeme $ do
           letterChar
         ]
 
+decl :: Parser Decl
+decl = lexeme . parenthesis $ dDefun
+  where
+    dDefun :: Parser Decl
+    dDefun = do
+      keyword "defun"
+      name <- ident
+      parameters <- keyword "(" *> many parameter <* keyword ")"
+      code <- codeblock
+
+      return $ DDefun name parameters code MkRange
+
+stmt :: Parser Stmt
+stmt = lexeme . parenthesis $ sDecl <|> sExpr
+  where
+    sDecl :: Parser Stmt
+    sDecl = do
+      decl <- decl
+
+      return $ SDecl decl MkRange
+
+    sExpr :: Parser Stmt
+    sExpr = do
+      expr <- expr
+
+      return $ SExpr expr MkRange
+
 expr :: Parser Expr
-expr = lexeme $ eLet <|> eLambda <|> eDefun <|> eCall
+expr = lexeme $ eLet <|> eLambda <|> eCall
   where
     eLambda :: Parser Expr
     eLambda = do
@@ -67,14 +97,6 @@ expr = lexeme $ eLet <|> eLambda <|> eDefun <|> eCall
       code <- codeblock
 
       return $ ELambda parameter code MkRange
-
-    eDefun :: Parser Expr
-    eDefun = do
-      keyword "defun"
-      name <- ident
-      parameters <- keyword "(" *> many parameter <* keyword ")"
-
-      EDefun name parameters <$> codeblock
 
     eLet :: Parser Expr
     eLet = do
@@ -90,12 +112,6 @@ expr = lexeme $ eLet <|> eLambda <|> eDefun <|> eCall
       arguments <- many expr
 
       return $ foldl (\acc argument -> ECall acc argument MkRange) callee arguments
-
-    parameter :: Parser (Ident, Type)
-    parameter = lexeme $ keyword "(" *> ((,) <$> ident <*> type') <* keyword ")"
-
-    variable :: Parser (Ident, Expr)
-    variable = lexeme $ keyword "(" *> ((,) <$> ident <*> expr) <* keyword ")"
 
 primary :: Parser Expr
 primary = lexeme $ eStr <|> eInt <|> eFloat <|> eGroup <|> eRef
@@ -133,8 +149,11 @@ primary = lexeme $ eStr <|> eInt <|> eFloat <|> eGroup <|> eRef
 parenthesis :: Parser a -> Parser a
 parenthesis parser = symbol "(" *> parser <* symbol ")"
 
-decl :: Parser Expr
-decl = parenthesis expr
+parameter :: Parser (Ident, Type)
+parameter = lexeme $ keyword "(" *> ((,) <$> ident <*> type') <* keyword ")"
+
+variable :: Parser (Ident, Expr)
+variable = lexeme $ keyword "(" *> ((,) <$> ident <*> expr) <* keyword ")"
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
