@@ -24,14 +24,14 @@ codeblock :: Parser [Stmt]
 codeblock = many stmt
 
 type' :: Parser Type
-type' = lexeme $ do
-  name <-
-    (:)
-      <$> letterChar
-      <*> many alphaNumChar
-      <?> "identifier"
-
-  return $ MkType name
+type' = lexeme $ MkType <$> name
+  where
+    name :: Parser String
+    name =
+      (:)
+        <$> letterChar
+        <*> many (letterChar <|> alphaNumChar)
+        <?> "identifier"
 
 ident :: Parser Ident
 ident = lexeme $ MkIdent <$> name <*> currentLoc
@@ -70,7 +70,7 @@ decl = lexeme . parenthesis $ dDefun
     dDefun = keyword "defun" *> (DDefun <$> ident <*> parameters <*> codeblock <*> currentLoc)
       where
         parameters :: Parser [(Ident, Type)]
-        parameters = keyword "(" *> many parameter <* keyword ")"
+        parameters = parenthesis $ many parameter
 
 stmt :: Parser Stmt
 stmt = lexeme . parenthesis $ sDecl <|> sExpr
@@ -88,10 +88,7 @@ expr = lexeme $ eLet <|> eLambda <|> eCall
     eLambda = keyword "lambda" *> (ELambda <$> parameter <*> codeblock <*> currentLoc)
 
     eLet :: Parser Expr
-    eLet = keyword "let" *> (ELet <$> variables <*> codeblock <*> currentLoc)
-      where
-        variables :: Parser [(Ident, Expr)]
-        variables = keyword "(" *> many variable <* keyword ")"
+    eLet = keyword "let" *> (ELet <$> parenthesis (many variable) <*> codeblock <*> currentLoc)
 
     eCall :: Parser Expr
     eCall = do
@@ -128,10 +125,10 @@ parenthesis :: Parser arguments -> Parser arguments
 parenthesis parser = symbol "(" *> parser <* symbol ")"
 
 parameter :: Parser (Ident, Type)
-parameter = lexeme $ keyword "(" *> ((,) <$> ident <*> type') <* keyword ")"
+parameter = lexeme . parenthesis $ (,) <$> ident <*> type'
 
 variable :: Parser (Ident, Expr)
-variable = lexeme $ keyword "(" *> ((,) <$> ident <*> expr) <* keyword ")"
+variable = lexeme . parenthesis $ (,) <$> ident <*> expr
 
 lexeme :: Parser arguments -> Parser arguments
 lexeme = L.lexeme sc
