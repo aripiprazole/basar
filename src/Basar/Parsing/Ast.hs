@@ -12,7 +12,6 @@ data Decl
 
 data Stmt
   = SExpr Expr Loc
-  | SDefun Ident [(Ident, Type)] [Stmt] Loc
   | SDecl Decl Loc
   deriving (Show)
 

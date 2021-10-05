@@ -3,7 +3,7 @@
 
 module Basar.Parsing.Parser (parseBasar) where
 
-import Basar.Parsing.Ast (Decl (DDefun), Expr (ECall, EFloat, EGroup, EInt, ELambda, ELet, ERef, EStr), Ident (MkIdent), Loc (MkLoc), Stmt (SDecl, SDefun, SExpr), Type (MkType))
+import Basar.Parsing.Ast (Decl (DDefun), Expr (ECall, EFloat, EGroup, EInt, ELambda, ELet, ERef, EStr), Ident (MkIdent), Loc (MkLoc), Stmt (SDecl, SExpr), Type (MkType))
 import Data.Foldable (Foldable)
 import Data.Traversable (Traversable)
 import Data.Void (Void)
