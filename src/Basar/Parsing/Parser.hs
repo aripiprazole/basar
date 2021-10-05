@@ -38,7 +38,7 @@ ident = lexeme $ do
       <*> many (identChar <|> alphaNumChar)
       <?> "identifier"
 
-  return $ MkIdent name MkRange
+  return $ MkIdent MkRange name
   where
     identChar :: Parser Char
     identChar =
@@ -68,24 +68,16 @@ decl = lexeme . parenthesis $ dDefun
       keyword "defun"
       name <- ident
       parameters <- keyword "(" *> many parameter <* keyword ")"
-      code <- codeblock
-
-      return $ DDefun name parameters code MkRange
+      DDefun MkRange name parameters <$> codeblock
 
 stmt :: Parser Stmt
 stmt = lexeme . parenthesis $ sDecl <|> sExpr
   where
     sDecl :: Parser Stmt
-    sDecl = do
-      decl <- decl
-
-      return $ SDecl decl MkRange
+    sDecl = SDecl MkRange <$> decl
 
     sExpr :: Parser Stmt
-    sExpr = do
-      expr <- expr
-
-      return $ SExpr expr MkRange
+    sExpr = SExpr MkRange <$> expr
 
 expr :: Parser Expr
 expr = lexeme $ eLet <|> eLambda <|> eCall
@@ -94,57 +86,38 @@ expr = lexeme $ eLet <|> eLambda <|> eCall
     eLambda = do
       keyword "lambda"
       parameter <- parameter
-      code <- codeblock
-
-      return $ ELambda parameter code MkRange
+      ELambda MkRange parameter <$> codeblock
 
     eLet :: Parser Expr
     eLet = do
       keyword "let"
       variables <- keyword "(" *> many variable <* keyword ")"
-      code <- codeblock
-
-      return $ ELet variables code MkRange
+      ELet MkRange variables <$> codeblock
 
     eCall :: Parser Expr
     eCall = do
       callee <- primary
       arguments <- many expr
 
-      return $ foldl (\acc argument -> ECall acc argument MkRange) callee arguments
+      return $ foldl (ECall MkRange) callee arguments
 
 primary :: Parser Expr
 primary = lexeme $ eStr <|> eInt <|> eFloat <|> eGroup <|> eRef
   where
     eStr :: Parser Expr
-    eStr = do
-      text <- char '"' *> manyTill L.charLiteral (char '"')
-
-      return $ EStr text MkRange
+    eStr = EStr MkRange <$> (char '"' *> manyTill L.charLiteral (char '"'))
 
     eInt :: Parser Expr
-    eInt = do
-      n <- L.decimal
-
-      return $ EInt n MkRange
+    eInt = EInt MkRange <$> L.decimal
 
     eFloat :: Parser Expr
-    eFloat = do
-      n <- L.float
-
-      return $ EFloat n MkRange
+    eFloat = EFloat MkRange <$> L.float
 
     eRef :: Parser Expr
-    eRef = do
-      name <- ident
-
-      return $ ERef name MkRange
+    eRef = ERef MkRange <$> ident
 
     eGroup :: Parser Expr
-    eGroup = do
-      expr <- parenthesis expr
-
-      return $ EGroup expr MkRange
+    eGroup = EGroup MkRange <$> parenthesis expr
 
 parenthesis :: Parser a -> Parser a
 parenthesis parser = symbol "(" *> parser <* symbol ")"
