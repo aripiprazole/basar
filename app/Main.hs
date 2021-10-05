@@ -1,6 +1,6 @@
 module Main where
 
-import Lib
+import Basar.Cli
 
 main :: IO ()
-main = someFunc
+main = runCli

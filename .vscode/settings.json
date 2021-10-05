@@ -1,9 +1,14 @@
 {
   "cSpell.words": [
     "Basar",
+    "bytestring",
+    "Codegen",
+    "Defun",
     "deps",
+    "foldl",
     "gabrielleeg",
     "Guimarães",
+    "hashable",
     "rtsopts",
     "stackage",
     "subdirs"
