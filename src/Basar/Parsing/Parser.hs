@@ -1,10 +1,13 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Basar.Parsing.Parser (parseBasar) where
 
-import Basar.Parsing.Ast (Decl (DDefun), Expr (ECall, EFloat, EGroup, EInt, ELambda, ELet, ERef, EStr), Ident (MkIdent), Range (MkRange), Stmt (SDecl, SDefun, SExpr), Type (MkType))
+import Basar.Parsing.Ast (Decl (DDefun), Expr (ECall, EFloat, EGroup, EInt, ELambda, ELet, ERef, EStr), Ident (MkIdent), Loc (MkLoc), Stmt (SDecl, SDefun, SExpr), Type (MkType))
+import Data.Foldable (Foldable)
+import Data.Traversable (Traversable)
 import Data.Void (Void)
-import Text.Megaparsec (MonadParsec (try), ParseErrorBundle, Parsec, choice, getSourcePos, many, manyTill, runParser, takeWhileP, (<?>), (<|>))
+import Text.Megaparsec (MonadParsec (try), ParseErrorBundle, Parsec, SourcePos (SourcePos), choice, getSourcePos, many, manyTill, runParser, takeWhileP, unPos, (<?>), (<|>))
 import Text.Megaparsec.Char (alphaNumChar, char, letterChar, space1, string)
 import qualified Text.Megaparsec.Char.Lexer as L
 import Text.Megaparsec.Error (ParseErrorBundle)
@@ -31,15 +34,15 @@ type' = lexeme $ do
   return $ MkType name
 
 ident :: Parser Ident
-ident = lexeme $ do
-  name <-
-    (:)
-      <$> identChar
-      <*> many (identChar <|> alphaNumChar)
-      <?> "identifier"
-
-  return $ MkIdent MkRange name
+ident = lexeme $ MkIdent <$> currentLoc <*> name
   where
+    name :: Parser String
+    name =
+      (:)
+        <$> identChar
+        <*> many (identChar <|> alphaNumChar)
+        <?> "identifier"
+
     identChar :: Parser Char
     identChar =
       choice
@@ -64,62 +67,64 @@ decl :: Parser Decl
 decl = lexeme . parenthesis $ dDefun
   where
     dDefun :: Parser Decl
-    dDefun = do
-      keyword "defun"
-      name <- ident
-      parameters <- keyword "(" *> many parameter <* keyword ")"
-      DDefun MkRange name parameters <$> codeblock
+    dDefun = keyword "defun" *> (DDefun <$> currentLoc <*> ident <*> parameters <*> codeblock)
+      where
+        parameters :: Parser [(Ident, Type)]
+        parameters = keyword "(" *> many parameter <* keyword ")"
 
 stmt :: Parser Stmt
 stmt = lexeme . parenthesis $ sDecl <|> sExpr
   where
     sDecl :: Parser Stmt
-    sDecl = SDecl MkRange <$> decl
+    sDecl = SDecl <$> currentLoc <*> decl
 
     sExpr :: Parser Stmt
-    sExpr = SExpr MkRange <$> expr
+    sExpr = SExpr <$> currentLoc <*> expr
 
 expr :: Parser Expr
 expr = lexeme $ eLet <|> eLambda <|> eCall
   where
     eLambda :: Parser Expr
-    eLambda = do
-      keyword "lambda"
-      parameter <- parameter
-      ELambda MkRange parameter <$> codeblock
+    eLambda = keyword "lambda" *> (ELambda <$> currentLoc <*> parameter <*> codeblock)
 
     eLet :: Parser Expr
-    eLet = do
-      keyword "let"
-      variables <- keyword "(" *> many variable <* keyword ")"
-      ELet MkRange variables <$> codeblock
+    eLet = keyword "let" *> (ELet <$> currentLoc <*> variables <*> codeblock)
+      where
+        variables :: Parser [(Ident, Expr)]
+        variables = keyword "(" *> many variable <* keyword ")"
 
     eCall :: Parser Expr
     eCall = do
       callee <- primary
-      arguments <- many expr
+      arguments <- map pure <$> many expr
 
-      return $ foldl (ECall MkRange) callee arguments
+      foldl (\acc arg -> ECall <$> currentLoc <*> acc <*> arg) (pure callee) arguments
 
 primary :: Parser Expr
 primary = lexeme $ eStr <|> eInt <|> eFloat <|> eGroup <|> eRef
   where
     eStr :: Parser Expr
-    eStr = EStr MkRange <$> (char '"' *> manyTill L.charLiteral (char '"'))
+    eStr = EStr <$> currentLoc <*> (char '"' *> manyTill L.charLiteral (char '"'))
 
     eInt :: Parser Expr
-    eInt = EInt MkRange <$> L.decimal
+    eInt = EInt <$> currentLoc <*> L.decimal
 
     eFloat :: Parser Expr
-    eFloat = EFloat MkRange <$> L.float
+    eFloat = EFloat <$> currentLoc <*> L.float
 
     eRef :: Parser Expr
-    eRef = ERef MkRange <$> ident
+    eRef = ERef <$> currentLoc <*> ident
 
     eGroup :: Parser Expr
-    eGroup = EGroup MkRange <$> parenthesis expr
+    eGroup = EGroup <$> currentLoc <*> parenthesis expr
 
-parenthesis :: Parser a -> Parser a
+currentLoc :: Parser Loc
+currentLoc = do
+  SourcePos _ x y <- getSourcePos
+
+  return $ MkLoc (unPos x) (unPos y)
+
+parenthesis :: Parser arguments -> Parser arguments
 parenthesis parser = symbol "(" *> parser <* symbol ")"
 
 parameter :: Parser (Ident, Type)
@@ -128,7 +133,7 @@ parameter = lexeme $ keyword "(" *> ((,) <$> ident <*> type') <* keyword ")"
 variable :: Parser (Ident, Expr)
 variable = lexeme $ keyword "(" *> ((,) <$> ident <*> expr) <* keyword ")"
 
-lexeme :: Parser a -> Parser a
+lexeme :: Parser arguments -> Parser arguments
 lexeme = L.lexeme sc
 
 symbol :: String -> Parser String
