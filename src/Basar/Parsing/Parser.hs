@@ -2,7 +2,7 @@
 
 module Basar.Parsing.Parser (parseBasar) where
 
-import Basar.Parsing.Ast (Expr (ECall, EDefun, EFloat, EInt, ELambda, ELet, ERef, EStr), Ident (MkIdent), Range (MkRange), Type (MkType))
+import Basar.Parsing.Ast (Expr (ECall, EDefun, EFloat, EGroup, EInt, ELambda, ELet, ERef, EStr), Ident (MkIdent), Range (MkRange), Type (MkType))
 import Data.Void (Void)
 import Text.Megaparsec (MonadParsec (try), ParseErrorBundle, Parsec, choice, getSourcePos, many, manyTill, runParser, takeWhileP, (<?>), (<|>))
 import Text.Megaparsec.Char (alphaNumChar, char, letterChar, space1, string)
@@ -125,10 +125,16 @@ primary = lexeme $ eStr <|> eInt <|> eFloat <|> eGroup <|> eRef
       return $ ERef name MkRange
 
     eGroup :: Parser Expr
-    eGroup = decl
+    eGroup = do
+      expr <- parenthesis expr
+
+      return $ EGroup expr MkRange
+
+parenthesis :: Parser a -> Parser a
+parenthesis parser = symbol "(" *> parser <* symbol ")"
 
 decl :: Parser Expr
-decl = symbol "(" *> expr <* symbol ")"
+decl = parenthesis expr
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
