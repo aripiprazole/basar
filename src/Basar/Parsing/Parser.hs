@@ -34,7 +34,7 @@ type' = lexeme $ do
   return $ MkType name
 
 ident :: Parser Ident
-ident = lexeme $ MkIdent <$> currentLoc <*> name
+ident = lexeme $ MkIdent <$> name <*> currentLoc
   where
     name :: Parser String
     name =
@@ -67,7 +67,7 @@ decl :: Parser Decl
 decl = lexeme . parenthesis $ dDefun
   where
     dDefun :: Parser Decl
-    dDefun = keyword "defun" *> (DDefun <$> currentLoc <*> ident <*> parameters <*> codeblock)
+    dDefun = keyword "defun" *> (DDefun <$> ident <*> parameters <*> codeblock <*> currentLoc)
       where
         parameters :: Parser [(Ident, Type)]
         parameters = keyword "(" *> many parameter <* keyword ")"
@@ -76,19 +76,19 @@ stmt :: Parser Stmt
 stmt = lexeme . parenthesis $ sDecl <|> sExpr
   where
     sDecl :: Parser Stmt
-    sDecl = SDecl <$> currentLoc <*> decl
+    sDecl = SDecl <$> decl <*> currentLoc
 
     sExpr :: Parser Stmt
-    sExpr = SExpr <$> currentLoc <*> expr
+    sExpr = SExpr <$> expr <*> currentLoc
 
 expr :: Parser Expr
 expr = lexeme $ eLet <|> eLambda <|> eCall
   where
     eLambda :: Parser Expr
-    eLambda = keyword "lambda" *> (ELambda <$> currentLoc <*> parameter <*> codeblock)
+    eLambda = keyword "lambda" *> (ELambda <$> parameter <*> codeblock <*> currentLoc)
 
     eLet :: Parser Expr
-    eLet = keyword "let" *> (ELet <$> currentLoc <*> variables <*> codeblock)
+    eLet = keyword "let" *> (ELet <$> variables <*> codeblock <*> currentLoc)
       where
         variables :: Parser [(Ident, Expr)]
         variables = keyword "(" *> many variable <* keyword ")"
@@ -96,27 +96,27 @@ expr = lexeme $ eLet <|> eLambda <|> eCall
     eCall :: Parser Expr
     eCall = do
       callee <- primary
-      arguments <- map pure <$> many expr
+      arguments <- many expr
 
-      foldl (\acc arg -> ECall <$> currentLoc <*> acc <*> arg) (pure callee) arguments
+      foldl (\acc arg -> (`ECall` arg) <$> acc <*> currentLoc) (pure callee) arguments
 
 primary :: Parser Expr
 primary = lexeme $ eStr <|> eInt <|> eFloat <|> eGroup <|> eRef
   where
     eStr :: Parser Expr
-    eStr = EStr <$> currentLoc <*> (char '"' *> manyTill L.charLiteral (char '"'))
+    eStr = EStr <$> (char '"' *> manyTill L.charLiteral (char '"')) <*> currentLoc
 
     eInt :: Parser Expr
-    eInt = EInt <$> currentLoc <*> L.decimal
+    eInt = EInt <$> L.decimal <*> currentLoc
 
     eFloat :: Parser Expr
-    eFloat = EFloat <$> currentLoc <*> L.float
+    eFloat = EFloat <$> L.float <*> currentLoc
 
     eRef :: Parser Expr
-    eRef = ERef <$> currentLoc <*> ident
+    eRef = ERef <$> ident <*> currentLoc
 
     eGroup :: Parser Expr
-    eGroup = EGroup <$> currentLoc <*> parenthesis expr
+    eGroup = EGroup <$> parenthesis expr <*> currentLoc
 
 currentLoc :: Parser Loc
 currentLoc = do
