@@ -3,11 +3,11 @@
 
 module Basar.Parsing.Parser (parseBasar) where
 
-import Basar.Parsing.Ast (Decl (DDefun), Expr (ECall, EFloat, EGroup, EInt, ELambda, ELet, ERef, EStr), Ident (MkIdent), Loc (MkLoc), Stmt (SDecl, SExpr), Type (MkType))
+import Basar.Parsing.Ast (Decl (..), Expr (..), Ident (..), Loc (..), Stmt (..), Type (..))
 import Data.Foldable (Foldable)
 import Data.Traversable (Traversable)
 import Data.Void (Void)
-import Text.Megaparsec (MonadParsec (try), ParseErrorBundle, Parsec, SourcePos (SourcePos), choice, getSourcePos, many, manyTill, runParser, takeWhileP, unPos, (<?>), (<|>))
+import Text.Megaparsec (MonadParsec (..), ParseErrorBundle, Parsec, SourcePos (..), choice, getSourcePos, many, manyTill, runParser, takeWhileP, unPos, (<?>), (<|>))
 import Text.Megaparsec.Char (alphaNumChar, char, letterChar, space1, string)
 import qualified Text.Megaparsec.Char.Lexer as L
 import Text.Megaparsec.Error (ParseErrorBundle)
