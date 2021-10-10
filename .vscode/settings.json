@@ -3,6 +3,7 @@
     "Basar",
     "bytestring",
     "Codegen",
+    "concat",
     "Defun",
     "deps",
     "fmap",
@@ -13,8 +14,10 @@
     "hashable",
     "mappend",
     "mempty",
+    "println",
     "rtsopts",
     "stackage",
-    "subdirs"
+    "subdirs",
+    "Typecheck"
   ]
 }

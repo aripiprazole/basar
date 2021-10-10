@@ -27,6 +27,7 @@ dependencies:
   - text
   - scientific
   - hashable
+  - transformers
 
 library:
   source-dirs: src

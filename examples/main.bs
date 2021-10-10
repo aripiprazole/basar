@@ -1,4 +1,2 @@
-(defun main ((argc Int) (argv String))
-  (let ((n 1)
-        (str "simple string"))
-    (std/print (++ str (std/int-to-string n)))))
+(defun main ()
+  (print "Hello, world"))

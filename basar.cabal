@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: eb4903c6981ab30f9ce40df9708f1d3a9c6d6ce7d104f9f2230d15fd8bfebd4e
+-- hash: 5d0aa2b136fcbcfbecc9b8b9a19101dba067f03cc19167855bc5116ffb1de80f
 
 name:           basar
 version:        0.1.0.0
@@ -31,6 +31,9 @@ library
       Basar.Cli
       Basar.Parsing.Ast
       Basar.Parsing.Parser
+      Basar.Typechecking.Ast
+      Basar.Typechecking.Env
+      Basar.Typechecking.Typecheck
   other-modules:
       Paths_basar
   hs-source-dirs:
@@ -46,6 +49,7 @@ library
     , megaparsec
     , scientific
     , text
+    , transformers
   default-language: Haskell2010
 
 executable basar-exe
@@ -64,6 +68,7 @@ executable basar-exe
     , megaparsec
     , scientific
     , text
+    , transformers
   default-language: Haskell2010
 
 test-suite basar-test
@@ -83,4 +88,5 @@ test-suite basar-test
     , megaparsec
     , scientific
     , text
+    , transformers
   default-language: Haskell2010
