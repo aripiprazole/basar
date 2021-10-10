@@ -27,7 +27,7 @@ typecheck decls env = traverse (`resolveDecl` env) decls
         defineVariable (name@(MkIdent name' _), type') = do
           type'' <- case evaluateType type' env of
             Just t -> Right t
-            Nothing -> Left $ MkInferError loc $ concat ["Could not find type of parameter ", name', " (", show type', ") ", show env]
+            Nothing -> Left $ MkInferError loc $ concat ["Could not find type of parameter ", name', " (", show type', ")"]
 
           return (name, type'')
 
