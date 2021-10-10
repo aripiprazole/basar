@@ -1,4 +1,4 @@
-module Basar.Typechecking.Typecheck where
+module Basar.Typechecking.Typecheck (typecheck, InferError (MkInferError)) where
 
 import Basar.Parsing.Ast (Decl (..), Expr (..), Ident (..), Loc (..), Stmt (..), Type)
 import Basar.Typechecking.Ast (Ty (..), TyDecl (..), TyExpr (..), TyStmt (..), ty)
@@ -20,83 +20,80 @@ instance Show InferError where
   show (MkInferError UndefinedLoc message) = message ++ " at (compile-time defined)"
 
 typecheck :: [Decl] -> Either InferError [TyDecl]
-typecheck prog = evalState (runExceptT $ typecheck' prog) E.defaultEnv
+typecheck prog = evalState (runExceptT $ traverse resolveDecl prog) E.defaultEnv
 
-typecheck' :: [Decl] -> Infer [TyDecl]
-typecheck' = traverse resolveDecl
+resolveDecl :: Decl -> Infer TyDecl
+resolveDecl (DefunDecl name parameters body loc) = do
+  env <- lift get
+
+  lift $ put env {enclosing = Just env}
+
+  parameters' <- traverse defineParameter parameters
+  body' <- traverse resolveStmt body
+
+  lift $ put env
+
+  return $ TyDefunDecl name parameters' body' loc
   where
-    resolveDecl :: Decl -> Infer TyDecl
-    resolveDecl (DefunDecl name parameters body loc) = do
-      env <- lift get
+    defineParameter :: (Ident, Type) -> Infer (Ident, Ty)
+    defineParameter (name, type') = do
+      type'' <- lookupType type'
+      defineVariable name type''
+      return (name, type'')
 
-      lift $ put env {enclosing = Just env}
+resolveStmt :: Stmt -> Infer TyStmt
+resolveStmt (ExprStmt expr loc) = do
+  tyExpr <- resolveExpr expr
 
-      parameters' <- traverse defineParameter parameters
-      body' <- traverse resolveStmt body
+  return $ TyExprStmt tyExpr loc
+resolveStmt (DeclStmt decl loc) = do
+  tyDecl <- resolveDecl decl
 
-      lift $ put env
+  return $ TyDeclStmt tyDecl loc
 
-      return $ TyDefunDecl name parameters' body' loc
-      where
-        defineParameter :: (Ident, Type) -> Infer (Ident, Ty)
-        defineParameter (name, type') = do
-          type'' <- lookupType type'
-          defineVariable name type''
-          return (name, type'')
+resolveExpr :: Expr -> Infer TyExpr
+resolveExpr (StrExpr str loc) = return $ TyStrExpr str E.stringTy loc
+resolveExpr (IntExpr n loc) = return $ TyIntExpr n E.intTy loc
+resolveExpr (FloatExpr n loc) = return $ TyFloatExpr n E.floatTy loc
+resolveExpr (CallExpr callee arg loc) = do
+  tyCallee <- resolveExpr callee
+  tyArgument <- resolveExpr arg
 
-    resolveStmt :: Stmt -> Infer TyStmt
-    resolveStmt (ExprStmt expr loc) = do
-      tyExpr <- resolveExpr expr
+  case ty tyCallee of
+    FuncTy _ returnTy -> return $ TyCallExpr tyCallee tyArgument returnTy loc
+    _ -> throwE $ MkInferError loc "Trying to call a non-function value"
+resolveExpr (GroupExpr expr loc) = do
+  tyExpr <- resolveExpr expr
 
-      return $ TyExprStmt tyExpr loc
-    resolveStmt (DeclStmt decl loc) = do
-      tyDecl <- resolveDecl decl
+  return $ TyGroupExpr tyExpr (ty tyExpr) loc
+resolveExpr (RefExpr name loc) = do
+  ty <- lookupVariable name
 
-      return $ TyDeclStmt tyDecl loc
+  return $ TyRefExpr name ty loc
+resolveExpr (LambdaExpr (argName, argType) body loc) = do
+  argTy <- lookupType argType
+  bodyTy <- traverse resolveStmt body
 
-    resolveExpr :: Expr -> Infer TyExpr
-    resolveExpr (StrExpr str loc) = return $ TyStrExpr str E.stringTy loc
-    resolveExpr (IntExpr n loc) = return $ TyIntExpr n E.intTy loc
-    resolveExpr (FloatExpr n loc) = return $ TyFloatExpr n E.floatTy loc
-    resolveExpr (CallExpr callee arg loc) = do
-      tyCallee <- resolveExpr callee
-      tyArgument <- resolveExpr arg
+  returnTy <- case last bodyTy of
+    TyExprStmt expr _ -> return $ ty expr
+    _ -> throwE $ MkInferError loc "The last statement of a codeblock should be a Expression Statement"
 
-      case ty tyCallee of
-        FuncTy _ returnTy -> return $ TyCallExpr tyCallee tyArgument returnTy loc
-        _ -> throwE $ MkInferError loc "Trying to call a non-function value"
-    resolveExpr (GroupExpr expr loc) = do
-      tyExpr <- resolveExpr expr
+  return $ TyLambdaExpr (argName, argTy) bodyTy returnTy loc
+resolveExpr (LetExpr variables body loc) = do
+  variablesTy <- traverse defineLetVariable variables
+  bodyTy <- traverse resolveStmt body
 
-      return $ TyGroupExpr tyExpr (ty tyExpr) loc
-    resolveExpr (RefExpr name loc) = do
-      ty <- lookupVariable name
+  returnTy <- case last bodyTy of
+    TyExprStmt expr _ -> return $ ty expr
+    _ -> throwE $ MkInferError loc "The last statement of a codeblock should be a Expression Statement"
 
-      return $ TyRefExpr name ty loc
-    resolveExpr (LambdaExpr (argName, argType) body loc) = do
-      argTy <- lookupType argType
-      bodyTy <- traverse resolveStmt body
-
-      returnTy <- case last bodyTy of
-        TyExprStmt expr _ -> return $ ty expr
-        _ -> throwE $ MkInferError loc "The last statement of a codeblock should be a Expression Statement"
-
-      return $ TyLambdaExpr (argName, argTy) bodyTy returnTy loc
-    resolveExpr (LetExpr variables body loc) = do
-      variablesTy <- traverse defineLetVariable variables
-      bodyTy <- traverse resolveStmt body
-
-      returnTy <- case last bodyTy of
-        TyExprStmt expr _ -> return $ ty expr
-        _ -> throwE $ MkInferError loc "The last statement of a codeblock should be a Expression Statement"
-
-      return $ TyLetExpr variablesTy bodyTy returnTy loc
-      where
-        defineLetVariable :: (Ident, Expr) -> Infer (Ident, TyExpr)
-        defineLetVariable (name, expr) = do
-          expr' <- resolveExpr expr
-          defineVariable name $ ty expr'
-          return (name, expr')
+  return $ TyLetExpr variablesTy bodyTy returnTy loc
+  where
+    defineLetVariable :: (Ident, Expr) -> Infer (Ident, TyExpr)
+    defineLetVariable (name, expr) = do
+      expr' <- resolveExpr expr
+      defineVariable name $ ty expr'
+      return (name, expr')
 
 lookupType :: Type -> Infer Ty
 lookupType type' = do
