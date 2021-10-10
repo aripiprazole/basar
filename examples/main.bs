@@ -1,2 +1,3 @@
 (defun main ()
-  (print "Hello, world"))
+  (let ((message "Hello, world"))
+    (print message)))

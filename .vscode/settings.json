@@ -6,6 +6,7 @@
     "concat",
     "Defun",
     "deps",
+    "eval",
     "fmap",
     "foldl",
     "foldr",

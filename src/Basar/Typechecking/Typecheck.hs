@@ -1,92 +1,121 @@
 module Basar.Typechecking.Typecheck where
 
-import Basar.Parsing.Ast (Decl (DDefun), Expr (ECall, EFloat, EGroup, EInt, ELambda, ELet, ERef, EStr), Ident (MkIdent), Loc (MkLoc), Stmt (SDecl, SExpr), Type)
+import Basar.Parsing.Ast (Decl (DDefun), Expr (ECall, EFloat, EGroup, EInt, ELambda, ELet, ERef, EStr), Ident (MkIdent), Loc (Loc, UndefinedLoc), Stmt (SDecl, SExpr), Type)
 import Basar.Typechecking.Ast (Ty (TyFunc, TySimple), TyDecl (TyDDefun), TyExpr (TyECall, TyEFloat, TyEGroup, TyEInt, TyELambda, TyELet, TyERef, TyEStr), TyStmt (TySDecl, TySExpr), ty)
-import Basar.Typechecking.Env (Env, evaluateType, floatTy, getType, getVariable, intTy, stringTy)
+import Basar.Typechecking.Env (Env (enclosing))
+import qualified Basar.Typechecking.Env as E
+import Control.Monad.Trans.Class (lift)
+import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
+import Control.Monad.Trans.State.Strict (State, evalState, get, put)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
+import Data.Unique (Unique, newUnique)
 
-type Infer a = Either InferError a
+type Infer a = ExceptT InferError (State E.Env) a
 
 data InferError = MkInferError Loc String
 
 instance Show InferError where
-  show (MkInferError (MkLoc x y) message) = concat [message, " at ", show x, ":", show y]
+  show (MkInferError (Loc x y) message) = concat [message, " at ", show x, ":", show y]
+  show (MkInferError UndefinedLoc message) = message ++ " at (compile-time defined)"
 
-typecheck :: [Decl] -> Env -> Infer [TyDecl]
-typecheck decls env = traverse (`resolveDecl` env) decls
+typecheck :: [Decl] -> Either InferError [TyDecl]
+typecheck prog = evalState (runExceptT $ typecheck' prog) E.defaultEnv
+
+typecheck' :: [Decl] -> Infer [TyDecl]
+typecheck' = traverse resolveDecl
   where
-    resolveDecl :: Decl -> Env -> Infer TyDecl
-    resolveDecl (DDefun name parameters body loc) env = do
-      parameters' <- traverse defineVariable parameters
-      body' <- traverse (`resolveStmt` env) body
+    resolveDecl :: Decl -> Infer TyDecl
+    resolveDecl (DDefun name parameters body loc) = do
+      env <- lift get
 
-      Right $ TyDDefun name parameters' body' loc
+      lift $ put env {enclosing = Just env}
+
+      parameters' <- traverse defineParameter parameters
+      body' <- traverse resolveStmt body
+
+      lift $ put env
+
+      return $ TyDDefun name parameters' body' loc
       where
-        defineVariable :: (Ident, Type) -> Infer (Ident, Ty)
-        defineVariable (name@(MkIdent name' _), type') = do
-          type'' <- case evaluateType type' env of
-            Just t -> Right t
-            Nothing -> Left $ MkInferError loc $ concat ["Could not find type of parameter ", name', " (", show type', ")"]
-
+        defineParameter :: (Ident, Type) -> Infer (Ident, Ty)
+        defineParameter (name, type') = do
+          type'' <- lookupType type'
+          defineVariable name type''
           return (name, type'')
 
-    resolveStmt :: Stmt -> Env -> Infer TyStmt
-    resolveStmt (SExpr expr loc) env = do
-      tyExpr <- resolveExpr expr env
+    resolveStmt :: Stmt -> Infer TyStmt
+    resolveStmt (SExpr expr loc) = do
+      tyExpr <- resolveExpr expr
 
-      Right $ TySExpr tyExpr loc
-    resolveStmt (SDecl decl loc) env = do
-      tyDecl <- resolveDecl decl env
+      return $ TySExpr tyExpr loc
+    resolveStmt (SDecl decl loc) = do
+      tyDecl <- resolveDecl decl
 
-      Right $ TySDecl tyDecl loc
+      return $ TySDecl tyDecl loc
 
-    resolveExpr :: Expr -> Env -> Infer TyExpr
-    resolveExpr (EStr str loc) env = Right $ TyEStr str stringTy loc
-    resolveExpr (EInt n loc) env = Right $ TyEInt n intTy loc
-    resolveExpr (EFloat n loc) env = Right $ TyEFloat n floatTy loc
-    resolveExpr (ECall callee arg loc) env = do
-      tyCallee <- resolveExpr callee env
-      tyArgument <- resolveExpr arg env
+    resolveExpr :: Expr -> Infer TyExpr
+    resolveExpr (EStr str loc) = return $ TyEStr str E.stringTy loc
+    resolveExpr (EInt n loc) = return $ TyEInt n E.intTy loc
+    resolveExpr (EFloat n loc) = return $ TyEFloat n E.floatTy loc
+    resolveExpr (ECall callee arg loc) = do
+      tyCallee <- resolveExpr callee
+      tyArgument <- resolveExpr arg
 
       case ty tyCallee of
-        TyFunc _ returnTy -> Right $ TyECall tyCallee tyArgument returnTy loc
-        _ -> Left $ MkInferError loc "Trying to call a non-function value"
-    resolveExpr (EGroup expr loc) env = do
-      tyExpr <- resolveExpr expr env
+        TyFunc _ returnTy -> return $ TyECall tyCallee tyArgument returnTy loc
+        _ -> throwE $ MkInferError loc "Trying to call a non-function value"
+    resolveExpr (EGroup expr loc) = do
+      tyExpr <- resolveExpr expr
 
-      Right $ TyEGroup tyExpr (ty tyExpr) loc
-    resolveExpr (ERef name@(MkIdent name' _) loc) env = do
-      ty <- case getVariable name' env of
-        Just ty -> Right ty
-        Nothing -> Left $ MkInferError loc $ "Unknown variable " ++ name'
+      return $ TyEGroup tyExpr (ty tyExpr) loc
+    resolveExpr (ERef name loc) = do
+      ty <- lookupVariable name
 
-      Right $ TyERef name ty loc
-    resolveExpr (ELambda (argName@(MkIdent argName' _), argType) body loc) env = do
-      argTy <- case evaluateType argType env of
-        Just ty -> Right ty
-        Nothing -> Left $ MkInferError loc $ "Could not evaluate " ++ argName'
-
-      bodyTy <- traverse (`resolveStmt` env) body
+      return $ TyERef name ty loc
+    resolveExpr (ELambda (argName, argType) body loc) = do
+      argTy <- lookupType argType
+      bodyTy <- traverse resolveStmt body
 
       returnTy <- case last bodyTy of
-        TySExpr expr _ -> Right $ ty expr
-        _ -> Left $ MkInferError loc "The last statement of a codeblock should be a Expression Statement"
+        TySExpr expr _ -> return $ ty expr
+        _ -> throwE $ MkInferError loc "The last statement of a codeblock should be a Expression Statement"
 
-      Right $ TyELambda (argName, argTy) bodyTy returnTy loc
-    resolveExpr (ELet variables body loc) env = do
-      variablesTy <- traverse defineVariable variables
-
-      bodyTy <- traverse (`resolveStmt` env) body
+      return $ TyELambda (argName, argTy) bodyTy returnTy loc
+    resolveExpr (ELet variables body loc) = do
+      variablesTy <- traverse defineLetVariable variables
+      bodyTy <- traverse resolveStmt body
 
       returnTy <- case last bodyTy of
-        TySExpr expr _ -> Right $ ty expr
-        _ -> Left $ MkInferError loc "The last statement of a codeblock should be a Expression Statement"
+        TySExpr expr _ -> return $ ty expr
+        _ -> throwE $ MkInferError loc "The last statement of a codeblock should be a Expression Statement"
 
-      Right $ TyELet variablesTy bodyTy returnTy loc
+      return $ TyELet variablesTy bodyTy returnTy loc
       where
-        defineVariable :: (Ident, Expr) -> Infer (Ident, TyExpr)
-        defineVariable (name, expr) = do
-          expr' <- resolveExpr expr env
-
+        defineLetVariable :: (Ident, Expr) -> Infer (Ident, TyExpr)
+        defineLetVariable (name, expr) = do
+          expr' <- resolveExpr expr
+          defineVariable name $ ty expr'
           return (name, expr')
+
+lookupType :: Type -> Infer Ty
+lookupType type' = do
+  env <- lift get
+
+  case E.getType type' env of
+    Just t -> return t
+    Nothing -> throwE $ MkInferError UndefinedLoc $ concat ["Could not find type of parameter ", show type', " (", show type', ")"]
+
+lookupVariable :: Ident -> Infer Ty
+lookupVariable (MkIdent name loc) = do
+  env <- lift get
+
+  case E.getVariable name env of
+    Just var -> return var
+    Nothing -> throwE $ MkInferError loc $ "Unbound variable " ++ name
+
+defineVariable :: Ident -> Ty -> Infer ()
+defineVariable (MkIdent name loc) ty = do
+  env <- lift get
+  lift $ put (E.defineVariable name ty env)
+  return ()

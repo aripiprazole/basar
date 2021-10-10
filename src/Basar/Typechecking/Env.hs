@@ -14,14 +14,17 @@ data Env = MkEnv
   }
   deriving (Show)
 
-getType :: String -> Env -> Maybe Ty
-getType name MkEnv {types} = types !? name
+getType :: Type -> Env -> Maybe Ty
+getType (MkType name) MkEnv {types} = types !? name
 
 getVariable :: String -> Env -> Maybe Ty
 getVariable name MkEnv {variables} = variables !? name
 
-evaluateType :: Type -> Env -> Maybe Ty
-evaluateType (MkType name) = getType name
+defineVariable :: String -> Ty -> Env -> Env
+defineVariable name ty env@MkEnv {variables} =
+  env
+    { variables = M.insert name ty variables
+    }
 
 stringTy :: Ty
 stringTy = TySimple "string"

@@ -10,7 +10,7 @@ runCli = do
   content <- readFile "./examples/main.bs"
 
   case parseBasar content of
-    Right program -> print $ typecheck program defaultEnv
+    Right program -> print $ typecheck program
     Left l -> putStrLn $ errorBundlePretty l
 
   return ()
