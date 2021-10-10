@@ -2,8 +2,8 @@
 
 module Basar.Typechecking.Env where
 
-import Basar.Parsing.Ast (Ident, Type (MkType))
-import Basar.Typechecking.Ast (Ty (TyFunc, TySimple), TyDecl)
+import Basar.Parsing.Ast (Ident, Type (Type))
+import Basar.Typechecking.Ast (Ty (..), TyDecl)
 import Data.Map.Strict (Map, (!?))
 import qualified Data.Map.Strict as M
 
@@ -15,7 +15,7 @@ data Env = MkEnv
   deriving (Show)
 
 getType :: Type -> Env -> Maybe Ty
-getType (MkType name) MkEnv {types} = types !? name
+getType (Type name) MkEnv {types} = types !? name
 
 getVariable :: String -> Env -> Maybe Ty
 getVariable name MkEnv {variables} = variables !? name
@@ -27,19 +27,19 @@ defineVariable name ty env@MkEnv {variables} =
     }
 
 stringTy :: Ty
-stringTy = TySimple "string"
+stringTy = SimpleTy "string"
 
 intTy :: Ty
-intTy = TySimple "int"
+intTy = SimpleTy "int"
 
 floatTy :: Ty
-floatTy = TySimple "float"
+floatTy = SimpleTy "float"
 
 unitTy :: Ty
-unitTy = TySimple "unit"
+unitTy = SimpleTy "unit"
 
 printTy :: Ty
-printTy = TyFunc stringTy unitTy
+printTy = FuncTy stringTy unitTy
 
 defaultEnv :: Env
 defaultEnv =
