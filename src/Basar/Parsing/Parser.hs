@@ -24,7 +24,7 @@ codeblock :: Parser [Stmt]
 codeblock = many stmt
 
 type' :: Parser Type
-type' = lexeme $ MkType <$> name
+type' = lexeme $ Type <$> name
   where
     name :: Parser String
     name =
@@ -34,7 +34,7 @@ type' = lexeme $ MkType <$> name
         <?> "identifier"
 
 ident :: Parser Ident
-ident = lexeme $ MkIdent <$> name <*> currentLoc
+ident = lexeme $ Ident <$> name <*> currentLoc
   where
     name :: Parser String
     name =
@@ -64,56 +64,56 @@ ident = lexeme $ MkIdent <$> name <*> currentLoc
         ]
 
 decl :: Parser Decl
-decl = lexeme . parenthesis $ dDefun
+decl = lexeme . parenthesis $ defunDecl
   where
-    dDefun :: Parser Decl
-    dDefun = keyword "defun" *> (DDefun <$> ident <*> parameters <*> codeblock <*> currentLoc)
+    defunDecl :: Parser Decl
+    defunDecl = keyword "defun" *> (DefunDecl <$> ident <*> parameters <*> codeblock <*> currentLoc)
       where
         parameters :: Parser [(Ident, Type)]
         parameters = parenthesis $ many parameter
 
 stmt :: Parser Stmt
-stmt = lexeme . parenthesis $ sDecl <|> sExpr
+stmt = lexeme . parenthesis $ declStmt <|> exprStmt
   where
-    sDecl :: Parser Stmt
-    sDecl = SDecl <$> decl <*> currentLoc
+    declStmt :: Parser Stmt
+    declStmt = DeclStmt <$> decl <*> currentLoc
 
-    sExpr :: Parser Stmt
-    sExpr = SExpr <$> expr <*> currentLoc
+    exprStmt :: Parser Stmt
+    exprStmt = ExprStmt <$> expr <*> currentLoc
 
 expr :: Parser Expr
-expr = lexeme $ eLet <|> eLambda <|> eCall
+expr = lexeme $ letExpr <|> lambdaExpr <|> callExpr
   where
-    eLambda :: Parser Expr
-    eLambda = keyword "lambda" *> (ELambda <$> parameter <*> codeblock <*> currentLoc)
+    lambdaExpr :: Parser Expr
+    lambdaExpr = keyword "lambda" *> (LambdaExpr <$> parameter <*> codeblock <*> currentLoc)
 
-    eLet :: Parser Expr
-    eLet = keyword "let" *> (ELet <$> parenthesis (many variable) <*> codeblock <*> currentLoc)
+    letExpr :: Parser Expr
+    letExpr = keyword "let" *> (LetExpr <$> parenthesis (many variable) <*> codeblock <*> currentLoc)
 
-    eCall :: Parser Expr
-    eCall = do
+    callExpr :: Parser Expr
+    callExpr = do
       callee <- primary
       arguments <- many expr
 
-      foldl (\acc arg -> (`ECall` arg) <$> acc <*> currentLoc) (pure callee) arguments
+      foldl (\acc arg -> (`CallExpr` arg) <$> acc <*> currentLoc) (pure callee) arguments
 
 primary :: Parser Expr
-primary = lexeme $ eStr <|> eInt <|> eFloat <|> eGroup <|> eRef
+primary = lexeme $ strExpr <|> intExpr <|> floatExpr <|> groupExpr <|> refExpr
   where
-    eStr :: Parser Expr
-    eStr = EStr <$> (char '"' *> manyTill L.charLiteral (char '"')) <*> currentLoc
+    strExpr :: Parser Expr
+    strExpr = StrExpr <$> (char '"' *> manyTill L.charLiteral (char '"')) <*> currentLoc
 
-    eInt :: Parser Expr
-    eInt = EInt <$> L.decimal <*> currentLoc
+    intExpr :: Parser Expr
+    intExpr = IntExpr <$> L.decimal <*> currentLoc
 
-    eFloat :: Parser Expr
-    eFloat = EFloat <$> L.float <*> currentLoc
+    floatExpr :: Parser Expr
+    floatExpr = FloatExpr <$> L.float <*> currentLoc
 
-    eRef :: Parser Expr
-    eRef = ERef <$> ident <*> currentLoc
+    refExpr :: Parser Expr
+    refExpr = RefExpr <$> ident <*> currentLoc
 
-    eGroup :: Parser Expr
-    eGroup = EGroup <$> parenthesis expr <*> currentLoc
+    groupExpr :: Parser Expr
+    groupExpr = GroupExpr <$> parenthesis expr <*> currentLoc
 
 currentLoc :: Parser Loc
 currentLoc = do

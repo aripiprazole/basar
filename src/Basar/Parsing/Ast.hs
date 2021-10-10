@@ -1,27 +1,27 @@
 module Basar.Parsing.Ast where
 
-data Ident = MkIdent String Loc deriving (Show, Eq, Ord)
+data Ident = Ident String Loc deriving (Show, Eq, Ord)
 
 data Loc = Loc Int Int | UndefinedLoc deriving (Show, Eq, Ord)
 
-newtype Type = MkType String deriving (Show, Eq)
+newtype Type = Type String deriving (Show, Eq)
 
 data Decl
-  = DDefun Ident [(Ident, Type)] [Stmt] Loc
+  = DefunDecl Ident [(Ident, Type)] [Stmt] Loc
   deriving (Show, Eq)
 
 data Stmt
-  = SExpr Expr Loc
-  | SDecl Decl Loc
+  = ExprStmt Expr Loc
+  | DeclStmt Decl Loc
   deriving (Show, Eq)
 
 data Expr
-  = ECall Expr Expr Loc
-  | EStr String Loc
-  | EInt Int Loc
-  | EFloat Float Loc
-  | ERef Ident Loc
-  | EGroup Expr Loc
-  | ELambda (Ident, Type) [Stmt] Loc
-  | ELet [(Ident, Expr)] [Stmt] Loc
+  = CallExpr Expr Expr Loc
+  | StrExpr String Loc
+  | IntExpr Int Loc
+  | FloatExpr Float Loc
+  | RefExpr Ident Loc
+  | GroupExpr Expr Loc
+  | LambdaExpr (Ident, Type) [Stmt] Loc
+  | LetExpr [(Ident, Expr)] [Stmt] Loc
   deriving (Show, Eq)
