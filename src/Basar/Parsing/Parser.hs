@@ -119,7 +119,7 @@ currentLoc :: Parser Loc
 currentLoc = do
   SourcePos _ x y <- getSourcePos
 
-  return $ MkLoc (unPos x) (unPos y)
+  return $ Loc (unPos x) (unPos y)
 
 parenthesis :: Parser arguments -> Parser arguments
 parenthesis parser = symbol "(" *> parser <* symbol ")"

@@ -2,7 +2,7 @@ module Basar.Parsing.Ast where
 
 data Ident = MkIdent String Loc deriving (Show, Eq, Ord)
 
-data Loc = MkLoc Int Int deriving (Show, Eq, Ord)
+data Loc = Loc Int Int | UndefinedLoc deriving (Show, Eq, Ord)
 
 newtype Type = MkType String deriving (Show, Eq)
 
