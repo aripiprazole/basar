@@ -1,27 +1,37 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Basar.Typechecking.Env where
+module Basar.Typechecking.TypeEnv
+  ( TypeEnv (..),
+    getType,
+    getVariable,
+    defineVariable,
+    stringTy,
+    intTy,
+    floatTy,
+    defaultEnv,
+  )
+where
 
 import Basar.Parsing.Ast (Ident, Type (Type))
 import Basar.Typechecking.Ast (Ty (..), TyDecl)
 import Data.Map.Strict (Map, (!?))
 import qualified Data.Map.Strict as M
 
-data Env = MkEnv
+data TypeEnv = TypeEnv
   { variables :: Map String Ty,
-    enclosing :: Maybe Env,
+    enclosing :: Maybe TypeEnv,
     types :: Map String Ty
   }
   deriving (Show)
 
-getType :: Type -> Env -> Maybe Ty
-getType (Type name) MkEnv {types} = types !? name
+getType :: Type -> TypeEnv -> Maybe Ty
+getType (Type name) TypeEnv {types} = types !? name
 
-getVariable :: String -> Env -> Maybe Ty
-getVariable name MkEnv {variables} = variables !? name
+getVariable :: String -> TypeEnv -> Maybe Ty
+getVariable name TypeEnv {variables} = variables !? name
 
-defineVariable :: String -> Ty -> Env -> Env
-defineVariable name ty env@MkEnv {variables} =
+defineVariable :: String -> Ty -> TypeEnv -> TypeEnv
+defineVariable name ty env@TypeEnv {variables} =
   env
     { variables = M.insert name ty variables
     }
@@ -41,9 +51,9 @@ unitTy = SimpleTy "unit"
 printTy :: Ty
 printTy = FuncTy stringTy unitTy
 
-defaultEnv :: Env
+defaultEnv :: TypeEnv
 defaultEnv =
-  MkEnv
+  TypeEnv
     { variables =
         M.fromList
           [ ("print", printTy)

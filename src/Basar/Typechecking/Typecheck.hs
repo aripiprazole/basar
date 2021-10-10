@@ -2,8 +2,8 @@ module Basar.Typechecking.Typecheck (typecheck, InferError (MkInferError)) where
 
 import Basar.Parsing.Ast (Decl (..), Expr (..), Ident (..), Loc (..), Stmt (..), Type)
 import Basar.Typechecking.Ast (Ty (..), TyDecl (..), TyExpr (..), TyStmt (..), ty)
-import Basar.Typechecking.Env (Env (..))
-import qualified Basar.Typechecking.Env as E
+import Basar.Typechecking.TypeEnv (TypeEnv (..))
+import qualified Basar.Typechecking.TypeEnv as T
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import Control.Monad.Trans.State.Strict (State, evalState, get, put)
@@ -11,7 +11,7 @@ import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import Data.Unique (Unique, newUnique)
 
-type Infer a = ExceptT InferError (State E.Env) a
+type Infer a = ExceptT InferError (State T.TypeEnv) a
 
 data InferError = MkInferError Loc String
 
@@ -20,7 +20,7 @@ instance Show InferError where
   show (MkInferError UndefinedLoc message) = message ++ " at (compile-time defined)"
 
 typecheck :: [Decl] -> Either InferError [TyDecl]
-typecheck prog = evalState (runExceptT $ traverse resolveDecl prog) E.defaultEnv
+typecheck prog = evalState (runExceptT $ traverse resolveDecl prog) T.defaultEnv
 
 resolveDecl :: Decl -> Infer TyDecl
 resolveDecl (DefunDecl name parameters body loc) = do
@@ -52,9 +52,9 @@ resolveStmt (DeclStmt decl loc) = do
   return $ TyDeclStmt tyDecl loc
 
 resolveExpr :: Expr -> Infer TyExpr
-resolveExpr (StrExpr str loc) = return $ TyStrExpr str E.stringTy loc
-resolveExpr (IntExpr n loc) = return $ TyIntExpr n E.intTy loc
-resolveExpr (FloatExpr n loc) = return $ TyFloatExpr n E.floatTy loc
+resolveExpr (StrExpr str loc) = return $ TyStrExpr str T.stringTy loc
+resolveExpr (IntExpr n loc) = return $ TyIntExpr n T.intTy loc
+resolveExpr (FloatExpr n loc) = return $ TyFloatExpr n T.floatTy loc
 resolveExpr (CallExpr callee arg loc) = do
   tyCallee <- resolveExpr callee
   tyArgument <- resolveExpr arg
@@ -99,7 +99,7 @@ lookupType :: Type -> Infer Ty
 lookupType type' = do
   env <- lift get
 
-  case E.getType type' env of
+  case T.getType type' env of
     Just t -> return t
     Nothing -> throwE $ MkInferError UndefinedLoc $ concat ["Could not find type of parameter ", show type', " (", show type', ")"]
 
@@ -107,12 +107,12 @@ lookupVariable :: Ident -> Infer Ty
 lookupVariable (Ident name loc) = do
   env <- lift get
 
-  case E.getVariable name env of
+  case T.getVariable name env of
     Just var -> return var
     Nothing -> throwE $ MkInferError loc $ "Unbound variable " ++ name
 
 defineVariable :: Ident -> Ty -> Infer ()
 defineVariable (Ident name loc) ty = do
   env <- lift get
-  lift $ put (E.defineVariable name ty env)
+  lift $ put (T.defineVariable name ty env)
   return ()
