@@ -28,6 +28,9 @@ dependencies:
   - scientific
   - hashable
   - transformers
+  - llvm-hs
+  - llvm-hs-pure
+  - process
 
 library:
   source-dirs: src

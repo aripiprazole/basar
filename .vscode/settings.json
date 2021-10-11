@@ -1,6 +1,7 @@
 {
   "cSpell.words": [
     "Basar",
+    "Bitcode",
     "bytestring",
     "Codegen",
     "concat",
@@ -15,6 +16,7 @@
     "hashable",
     "mappend",
     "mempty",
+    "printf",
     "println",
     "rtsopts",
     "stackage",

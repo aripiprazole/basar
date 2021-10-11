@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 5d0aa2b136fcbcfbecc9b8b9a19101dba067f03cc19167855bc5116ffb1de80f
+-- hash: c556825dc63f723a46a814ebde316ba20aa492cbe53c872201acbcfc4fca427f
 
 name:           basar
 version:        0.1.0.0
@@ -29,11 +29,12 @@ library
   exposed-modules:
       Basar
       Basar.Cli
+      Basar.Codegen.Compiler
       Basar.Parsing.Ast
       Basar.Parsing.Parser
       Basar.Typechecking.Ast
-      Basar.Typechecking.Env
       Basar.Typechecking.Typecheck
+      Basar.Typechecking.TypeEnv
   other-modules:
       Paths_basar
   hs-source-dirs:
@@ -46,7 +47,10 @@ library
     , bytestring
     , containers
     , hashable
+    , llvm-hs
+    , llvm-hs-pure
     , megaparsec
+    , process
     , scientific
     , text
     , transformers
@@ -65,7 +69,10 @@ executable basar-exe
     , bytestring
     , containers
     , hashable
+    , llvm-hs
+    , llvm-hs-pure
     , megaparsec
+    , process
     , scientific
     , text
     , transformers
@@ -85,7 +92,10 @@ test-suite basar-test
     , bytestring
     , containers
     , hashable
+    , llvm-hs
+    , llvm-hs-pure
     , megaparsec
+    , process
     , scientific
     , text
     , transformers
